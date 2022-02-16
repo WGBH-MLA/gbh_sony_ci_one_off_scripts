@@ -1,32 +1,9 @@
 require 'sony_ci_api'
+require_relative 'guids_to_sony_ci_ids'
 
 # unset the object so it gets completely overwritten below; for console testing.
 Object.send(:remove_const, :GUIDsToSonyCiIds) if defined? GUIDsToSonyCiIds
 
-
-class GUIDsToSonyCiIds
-  attr_reader :guids, :errors
-
-  def initialize(guids)
-    @guids = Array(guids)
-    @errors = []
-  end
-
-  def client
-    @client ||= SonyCiApi::Client.new('ci.yml')
-  end
-
-  def sony_ci_records
-    @sony_ci_records ||= Array(guids).map do |guid|
-      search_str = guid[-20..-1]
-      client.workspace_search(query: search_str).first
-    end
-  end
-
-  def sony_ci_ids
-    sony_ci_records.map { |r| r['id'] }
-  end
-end
 
 @guids_file = "Peabody_correctTrintTranscripts.txt"
 @sony_ci_ids_file = "#{@guids_file}.sony_ci_ids"
