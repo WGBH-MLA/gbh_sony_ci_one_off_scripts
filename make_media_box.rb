@@ -1,45 +1,47 @@
 require 'sony_ci_api'
 require 'active_support/core_ext/time'
+require 'active_support/core_ext/hash/keys'
+require 'active_support/core_ext/hash/deep_merge'
 
 # unset the object so it gets completely overwritten below; for console testing.
 Object.send(:remove_const, :MediaBoxMaker) if defined? MediaBoxMaker
 
 class MediaBoxMaker
-  attr_reader :guids, :errors
+  attr_reader :guids, :params, :errors
 
-  def initialize(guids)
+  def initialize(guids, params={})
     @guids = Array(guids)
+    @params = default_params.deep_merge(params.deep_stringify_keys)
+    @params.delete('assetIds')
     @errors = []
   end
 
-
-  def request_body
-    @request_body ||= default_request_body
-    @request_body.merge(
-      {
-        "assetIds" => sony_ci_ids
-      }
-    )
+  def params_with_ids
+    params.merge({ "assetIds" => sony_ci_ids })
   end
 
-  def media_box_response
-    @media_box_response = client.post '/mediaboxes', params: request_body
+  def make!
+    @response ||= client.post '/mediaboxes', params: params_with_ids
   rescue => e
     @errors << e
     nil
   end
 
-  def default_request_body
+  def make_again!
+    @response = nil && make!
+  end
+
+  def default_params
     {
-      "name" => "Peabody-Files-Brandeis-CLAMS-2",
+      "name" => "Test media box",
       "type" => "Protected",
       "allowSourceDownload" => true,
       "allowPreviewDownload" => false,
       "allowElementDownload" => false,
-      "recipients" => [ "andrew_myers@wgbh.org", "timothy_lepczyk@wgbh.org" ],
-      "message" => "Peabody file from GBH for CLAMS project",
-      "password" => 'clams_peabody',
-      "expirationDays" => 105,
+      "recipients" => [ "andrew_myers@wgbh.org" ],
+      "message" => "Test Media Box",
+      "password" => 'aapb',
+      "expirationDays" => 1,
       "sendNotifications" => true,
       "notifyOnOpen" => true,
       "notifyOnChange" => true,
@@ -75,8 +77,31 @@ class MediaBoxMaker
 end
 
 
-guids = File.readlines('Peabody_correctTrintTranscripts.txt').map(&:chomp)
+@guids_filename = 'guids_just_jazz_media_box.txt'
 
-small_sample_guids = guids[0..9]
+@guids = File.readlines(@guids_filename).map(&:chomp)
 
-@mb = MediaBoxMaker.new(small_sample_guids)
+
+params = {
+  "name" => "Media Box for Interns",
+  "type" => "Protected",
+  "allowSourceDownload" => true,
+  "allowPreviewDownload" => false,
+  "allowElementDownload" => false,
+  "recipients" => [ "casey_davis-kaufman@wgbh.org" ],
+  "message" => "Media Box for Interns",
+  "password" => 'aapb051122',
+  "expirationDays" => 180,
+  "sendNotifications" => true,
+  "notifyOnOpen" => true,
+  "notifyOnChange" => true,
+  "filters" => {
+    "elements" => {
+      "types" => [
+        "Video"
+      ]
+    }
+  }
+}
+
+@mb = MediaBoxMaker.new(@guids, params)
