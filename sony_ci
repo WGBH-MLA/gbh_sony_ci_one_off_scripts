@@ -1,0 +1,50 @@
+#!/usr/bin/env ruby -W0
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'sony_ci_api', github: 'WGBH-MLA/sony_ci_api_rewrite', branch: 'move_assets'
+  gem 'thor'
+  gem 'pry-byebug'
+end
+
+require 'sony_ci_api'
+
+class SonyCiCli < Thor
+
+  desc "move_media_assets", "Move Audio and Video Assets from one folder to another."
+  option :from, required: true, type: :string, desc: "The folder to move assets from."
+  option :to, required: true, type: :string, desc: "The folder to move assets to."
+  
+  def move_media_assets
+    src_folders = client.workspace_search(query: options[:from], kind: 'folder')
+    dest_folders = client.workspace_search(query: options[:to], kind: 'folder')
+
+    raise "No folders found matching --from \"#{options[:from]}\"" if src_folders.empty?
+
+    if dest_folders.empty?
+      puts "No folder found matching destination folder \"#{options[:to]}\""
+    elsif dest_folders.count > 1
+      puts "Found more than one folder matching --to \"#{options[:to]}\""
+    end
+
+    folder_tree = src_folders.map do |folder|
+      folder_contents = client.folder_contents(folder['id'])
+      [folder['name'], folder_contents]
+    end.to_h
+
+    pp folder_tree
+  end
+
+
+  no_commands do
+    def client
+      @client ||= SonyCiApi::Client.new('./ci.yml')
+    end
+  end
+end
+
+
+if __FILE__ == $PROGRAM_NAME
+  SonyCiCli.start(ARGV)
+end
