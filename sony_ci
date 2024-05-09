@@ -12,39 +12,65 @@ require 'sony_ci_api'
 
 class SonyCiCli < Thor
 
-  desc "move_media_assets", "Move Audio and Video Assets from one folder to another."
-  option :from, required: true, type: :string, desc: "The folder to move assets from."
-  option :to, required: true, type: :string, desc: "The folder to move assets to."
-  
-  def move_media_assets
-    src_folders = client.workspace_search(query: options[:from], kind: 'folder')
-    dest_folders = client.workspace_search(query: options[:to], kind: 'folder')
 
-    raise "No folders found matching --from \"#{options[:from]}\"" if src_folders.empty?
+  desc "move_media_assets <src> <dest>", "Move Audio and Video Assets from <src> folder to <dest> folder."
+  def move_media_assets(src, dest=nil)
+    src_folders = client.workspace_search(query: src, kind: 'folder').select{| f| f['name'] == src }
+    dest_folders = client.workspace_search(query: dest, kind: 'folder').select { |f| f['name'] == dest }
 
-    if dest_folders.empty?
-      puts "No folder found matching destination folder \"#{options[:to]}\""
+    if src_folders.empty?
+      raise "No folder found matching \"#{src}\""
+    elsif src_folders.count > 1
+      raise "Found more than one folder matching \"#{src}\""
+    elsif dest_folders.empty?
+      raise "No folder found matching \"#{dest}\""
     elsif dest_folders.count > 1
-      puts "Found more than one folder matching --to \"#{options[:to]}\""
+      raise "Found more than one folder matching \"#{dest}\""
+    else
+      src_folder = src_folders.first
+      dest_folder = dest_folders.first
     end
 
-    folder_tree = src_folders.map do |folder|
-      folder_contents = client.folder_contents(folder['id'])
-      [folder['name'], folder_contents]
-    end.to_h
+    src_folder['contents'] = client.folder_contents_r(src_folder['id'])
 
-    pp folder_tree
+    puts "\n\nSource Folder:"
+    print_folder_contents_r(src_folder)
+    # puts "\n\nDest Folder  = #{print_folder_contents_r(dest_folder)}"
+
+    media_in_folder = src_folder['contents'].select do |item|
+      item['kind'] == 'media'
+    end
+
+    puts "Found #{media_in_folder.count} media assets in folder #{src_folder['name']}"
+
   end
-
 
   no_commands do
     def client
       @client ||= SonyCiApi::Client.new('./ci.yml')
+    end
+
+    # Prints folder contents recursively.
+    def print_folder_contents_r(folder, depth: 0)
+      puts "#{' ' * depth}/#{folder['name']}"
+      # Fetch folder contents if not already fetched
+      folder['contents'] ||= client.folder_contents_r(folder['id']) if folder['contents'].empty?
+      folder.fetch('contents', []).each do |item|
+        if item['kind'] == 'folder'
+          print_folder_contents_r(item, depth: depth + 1)
+        else
+          puts "#{' ' * (depth + 1)}/#{item['name']}"
+        end
+      end
     end
   end
 end
 
 
 if __FILE__ == $PROGRAM_NAME
-  SonyCiCli.start(ARGV)
+  begin
+    SonyCiCli.start(ARGV)
+  rescue => e
+    puts "ERROR: " + e.message
+  end
 end

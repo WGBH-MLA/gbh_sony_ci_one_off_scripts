@@ -114,20 +114,22 @@ class MediaBoxMaker
 end
 
 
-@guids_filename = '../../data/mediabox_guids/All_WBGO_GUIDs_for_miranda.2023-12-08.txt'
+# GUIDs should be listed one per line in a plain text file.
+@guids_filename = 'path/to/list_of_guids.txt'
 
 @guids = File.readlines(@guids_filename).map(&:chomp)
 
-
+# See documentation for all parameter options. These values are just examples.
+# https://developers.cimediacloud.com/#mediaboxes-create-mediabox-post
 @params = {
-  "name" => "For Miranda - All WBGO videos",
+  "name" => "My Media Box",
   "type" => "Protected",
   "allowSourceDownload" => true,
   "allowPreviewDownload" => true,
   "allowElementDownload" => true,
-  "recipients" => [ "miranda_villesvik@wgbh.org", "andrew_myers@wgbh.org" ],
-  "message" => "ALL WBGO",
-  "password" => 'winkbobblegoatoboe12',
+  "recipients" => [ "andrew_myers@wgbh.org" ],
+  "message" => "",
+  "password" => '',
   "expirationDays" => 365,
   "sendNotifications" => true,
   "notifyOnOpen" => false,
@@ -142,4 +144,8 @@ end
 }
 
 @mb = MediaBoxMaker.new(@guids, @params)
+
+# This command does the actual making. Uncomment to make the media box,
+# or you can load this script in a ruby console and inspect the object
+# to see what GUIDs were not found, or to see errors, etc.
 # @mb.make!
