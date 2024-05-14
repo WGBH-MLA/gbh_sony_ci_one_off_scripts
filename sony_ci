@@ -11,37 +11,29 @@ end
 require 'sony_ci_api'
 
 class SonyCiCli < Thor
-
+  MEDIA_FILE_EXTENSIONS = ['.mp3', '.mp4']
 
   desc "move_media_assets <src> <dest>", "Move Audio and Video Assets from <src> folder to <dest> folder."
   def move_media_assets(src, dest=nil)
-    src_folders = client.workspace_search(query: src, kind: 'folder').select{| f| f['name'] == src }
-    dest_folders = client.workspace_search(query: dest, kind: 'folder').select { |f| f['name'] == dest }
+    src_folder = client.find_by_name(src, kind: 'folder')
+    dest_folder = client.find_by_name(dest, kind: 'folder')
 
-    if src_folders.empty?
-      raise "No folder found matching \"#{src}\""
-    elsif src_folders.count > 1
-      raise "Found more than one folder matching \"#{src}\""
-    elsif dest_folders.empty?
-      raise "No folder found matching \"#{dest}\""
-    elsif dest_folders.count > 1
-      raise "Found more than one folder matching \"#{dest}\""
+    raise "No folder named \"#{src}\" found" unless src_folder
+    raise "No folder named \"#{dest}\" found" unless dest_folder
+
+    filtered_tree = folder_filter(src_folder) do |item|
+      item['kind'] == 'Asset' && item['name'].end_with?(*MEDIA_FILE_EXTENSIONS)
+    end
+
+    media_assets = folder_flatten(filtered_tree)
+
+    if media_assets.count > 0
+      
+      puts "Moving #{media_assets.count} media assets to folder \"#{dest_folder['name']}\"\n"
+      folder_tree(filtered_tree)
     else
-      src_folder = src_folders.first
-      dest_folder = dest_folders.first
+      puts "No media assets found in folder \"#{src_folder['name']}\""
     end
-
-    src_folder['contents'] = client.folder_contents_r(src_folder['id'])
-
-    puts "\n\nSource Folder:"
-    print_folder_contents_r(src_folder)
-    # puts "\n\nDest Folder  = #{print_folder_contents_r(dest_folder)}"
-
-    media_in_folder = src_folder['contents'].select do |item|
-      item['kind'] == 'media'
-    end
-
-    puts "Found #{media_in_folder.count} media assets in folder #{src_folder['name']}"
 
   end
 
@@ -50,18 +42,47 @@ class SonyCiCli < Thor
       @client ||= SonyCiApi::Client.new('./ci.yml')
     end
 
-    # Prints folder contents recursively.
-    def print_folder_contents_r(folder, depth: 0)
+    # Prints folder name and contents like a directory tree
+    def folder_tree(folder, depth: 0)
       puts "#{' ' * depth}/#{folder['name']}"
       # Fetch folder contents if not already fetched
-      folder['contents'] ||= client.folder_contents_r(folder['id']) if folder['contents'].empty?
+      folder['contents'] ||= client.folder_contents(folder['id'])
       folder.fetch('contents', []).each do |item|
         if item['kind'] == 'folder'
-          print_folder_contents_r(item, depth: depth + 1)
+          print_folder_r(item, depth: depth + 1)
         else
           puts "#{' ' * (depth + 1)}/#{item['name']}"
         end
       end
+    end
+
+    def folder_filter(folder, &block)
+      # Fetch folder contents if not already fetched. This should only need to be done
+      # on the initial call, as folder_contents will recursively populate the 'contents'
+      # of all child folders.
+      all_folder_contents ||= client.folder_contents(folder['id'])
+
+      folder['contents'] = all_folder_contents.select! do |item|
+        yield(item) ||
+        (
+          item['kind'] == 'folder' &&
+          folder_filter(item, &block).count > 0
+        )
+      end
+      folder
+    end
+
+    # Returns a nested folder contents as a flat array, removing the folders and leaving
+    # only assets.
+    def folder_flatten(folder)
+      folder['contents'] ||= client.folder_contents(folder['id'])
+      folder['contents'].map do |item|
+        if item['kind'] == 'folder'
+          folder_flatten(item)
+        else
+          item
+        end
+      end.flatten
     end
   end
 end
@@ -72,5 +93,6 @@ if __FILE__ == $PROGRAM_NAME
     SonyCiCli.start(ARGV)
   rescue => e
     puts "ERROR: " + e.message
+    puts e.backtrace
   end
 end
