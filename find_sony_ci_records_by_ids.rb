@@ -3,7 +3,7 @@ require 'sony_ci_api'
 # Configure some params.
 path_to_sony_ci_config_file = './ci.yml'
 path_to_guids_list = './guids_have_transcripts_lookfor_sony.txt'
-production_workspace_id = '051303c1c1d24da7988128e6d2f56aa9'
+production_workspace_id = # Add the production workspace ID here.
 
 # Create the client for talking with Sony Ci api
 client = SonyCiApi::Client.new(path_to_sony_ci_config_file)
